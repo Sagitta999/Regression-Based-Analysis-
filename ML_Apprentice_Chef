@@ -1,0 +1,557 @@
+import pandas as pd 
+import matplotlib.pyplot as plt 
+import seaborn as sns 
+import statsmodels.formula.api as smf 
+from sklearn.model_selection import train_test_split 
+from sklearn.linear_model import LinearRegression 
+import gender_guesser.detector as gender 
+
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+
+file = 'Apprentice_Chef_Dataset.xlsx'
+chef = pd.read_excel(file) 
+
+
+##################################Creating a new column for the misisng value:
+for col in chef:
+
+   
+    if chef[col].isnull().astype(int).sum() > 0:
+        chef['M_'+col] = chef[col].isnull().astype(int)
+
+ 
+chef.head(n = 5)
+
+chef['FAMILY_NAME_SCORE'] = chef['FAMILY_NAME']
+chef['FAMILY_NAME_SCORE'] = pd.notnull(chef['FAMILY_NAME_SCORE'])
+chef['FAMILY_NAME_SCORE'] = chef['FAMILY_NAME_SCORE'].astype(int)
+chef.head (n=5)
+
+placeholder_lst = []
+
+for index, col in chef.iterrows():
+    
+    split_email = chef.loc[index, 'EMAIL'].split(sep = '@')
+
+    placeholder_lst.append(split_email)
+    
+email_df = pd.DataFrame(placeholder_lst)
+
+email_df
+
+email_df.columns = ['dont_use' , 'personal_email_domain']
+chef = pd.concat([chef, email_df['personal_email_domain']],
+                     axis = 1)
+chef.loc[: ,'personal_email_domain'].value_counts()
+
+personal_email_domains = ['@gmail.com', '@protonmail.com','@yahoo.com',
+                          '@msn.com','@aol.com','@passport.com',
+                          '@hotmail.com','@live.com','@me.com']
+work_email_domains  =    ['@amex.com','@merck.com','@jnj.com','@cocacola.com',
+                          '@mcdonalds.com','@apple.com','@nike.com','@ge.org',
+                          '@ibm.com','@dupont.com','@microsoft.com',
+                          '@chevron.com','@unitedhealth.com','@exxon.com',
+                          '@travelers.com','@boeing.com','@mmm.com','@pg.com',
+                          '@caterpillar.com','@verizon.com','@disney.com',
+                          '@walmart.com','@pfizer.com','@visa.com',
+                          '@jpmorgan.com','@unitedtech.com','@goldmansacs.com',
+                          '@cisco.com','@homedepot.com','@intel.com']
+
+##################################Spliting Email type and Email domain:
+placeholder_lst = []
+
+for domain in chef['personal_email_domain']:
+        if "@" + domain in personal_email_domains:
+            placeholder_lst.append('personal')
+            
+        elif"@" + domain in work_email_domains:
+            placeholder_lst.append('work')
+            
+        else:
+            print('Unknown')
+
+chef['domain_group'] = pd.Series(placeholder_lst)
+chef['domain_group'].value_counts()
+
+##################################Setting outlier thresholds:
+REVENUE_hi = 5500
+TOTAL_MEALS_ORDERED_hi = 170
+UNIQUE_MEALS_PURCH_hi = 5.5
+CONTACTS_W_CUSTOMER_SERVICE_hi = 10
+PRODUCT_CATEGORIES_VIEWED_hi = 4
+AVG_TIME_PER_SITE_VISIT_hi = 180
+CANCELLATIONS_BEFORE_NOON_hi = 6
+PC_LOGINS_lo = 5
+PC_LOGINS_hi = 6
+MOBILE_LOGINS_lo = 0.5
+MOBILE_LOGINS_hi = 2.5
+WEEKLY_PLAN_hi = 20
+EARLY_DELIVERIES_hi = 5
+LATE_DELIVERIES_hi = 11
+FOLLOWED_RECOMMENDATIONS_PCT_hi = 52
+AVG_PREP_VID_TIME_hi = 260
+LARGEST_ORDER_SIZE_lo = 2
+LARGEST_ORDER_SIZE_hi = 8
+MASTER_CLASSES_ATTENDED_hi = 1
+MEDIAN_MEAL_RATING_lo = 2
+MEDIAN_MEAL_RATING_hi = 4
+AVG_CLICKS_PER_VISIT_lo = 8
+TOTAL_PHOTOS_VIEWED_hi = 200
+
+##############################################################################
+## Feature Engineering (outlier thresholds)                                 ##
+##############################################################################
+# developing features (columns) for outliers
+
+# REVENUE
+chef['out_REVENUE'] = 0
+condition_hi = chef.loc[0:,'out_REVENUE'][chef['REVENUE'] > REVENUE_hi]
+
+chef['out_REVENUE'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+# TOTAL_MEALS_ORDERED
+chef['out_TOTAL_MEALS_ORDERED'] = 0
+condition_hi = chef.loc[0:,'out_TOTAL_MEALS_ORDERED'][chef['TOTAL_MEALS_ORDERED'] > TOTAL_MEALS_ORDERED_hi]
+
+chef['out_TOTAL_MEALS_ORDERED'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# UNIQUE_MEALS_PURCH
+chef['out_UNIQUE_MEALS_PURCH'] = 0
+condition_hi = chef.loc[0:,'out_TOTAL_MEALS_ORDERED'][chef['UNIQUE_MEALS_PURCH'] > UNIQUE_MEALS_PURCH_hi]
+
+chef['out_UNIQUE_MEALS_PURCH'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# CONTACT_W_CUSTOMR_SERVICE
+chef['out_CONTACTS_W_CUSTOMER_SERVICE'] = 0
+condition_hi = chef.loc[0:,'out_CONTACTS_W_CUSTOMER_SERVICE'][chef['CONTACTS_W_CUSTOMER_SERVICE'] > CONTACTS_W_CUSTOMER_SERVICE_hi]
+
+chef['out_CONTACTS_W_CUSTOMER_SERVICE'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# PRODUCT_CATEGORIES_VIEWED
+chef['out_PRODUCT_CATEGORIES_VIEWED'] = 0
+condition_hi = chef.loc[0:,'out_PRODUCT_CATEGORIES_VIEWED'][chef['PRODUCT_CATEGORIES_VIEWED'] > PRODUCT_CATEGORIES_VIEWED_hi]
+
+chef['out_PRODUCT_CATEGORIES_VIEWED'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# AVG_TIME_PER_SITE_VISIT
+chef['out_AVG_TIME_PER_SITE_VISIT'] = 0
+condition_hi = chef.loc[0:,'out_AVG_TIME_PER_SITE_VISIT'][chef['AVG_TIME_PER_SITE_VISIT'] > AVG_TIME_PER_SITE_VISIT_hi]
+
+chef['out_AVG_TIME_PER_SITE_VISIT'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# CANCELLATIONS_BEFORE_NOON
+chef['out_CANCELLATIONS_BEFORE_NOON'] = 0
+condition_hi = chef.loc[0:,'out_CANCELLATIONS_BEFORE_NOON'][chef['CANCELLATIONS_BEFORE_NOON'] > CANCELLATIONS_BEFORE_NOON_hi]
+
+chef['out_CANCELLATIONS_BEFORE_NOON'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+
+# WEEKLY_PLAN
+chef['out_WEEKLY_PLAN'] = 0
+condition_hi = chef.loc[0:,'out_WEEKLY_PLAN'][chef['WEEKLY_PLAN'] > WEEKLY_PLAN_hi]
+
+chef['out_WEEKLY_PLAN'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+# EARLY_DELIVERIES
+chef['out_EARLY_DELIVERIES'] = 0
+condition_hi = chef.loc[0:,'out_EARLY_DELIVERIES'][chef['EARLY_DELIVERIES'] > EARLY_DELIVERIES_hi]
+
+chef['out_EARLY_DELIVERIES'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+###
+
+# LATE_DELIVERIES
+chef['out_LATE_DELIVERIES'] = 0
+condition_hi = chef.loc[0:,'out_LATE_DELIVERIES'][chef['LATE_DELIVERIES'] > LATE_DELIVERIES_hi]
+
+chef['out_LATE_DELIVERIES'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# FOLLOWED_RECOMMENDATIONS_PCT
+chef['out_FOLLOWED_RECOMMENDATIONS_PCT'] = 0
+condition_hi = chef.loc[0:,'out_FOLLOWED_RECOMMENDATIONS_PCT'][chef['FOLLOWED_RECOMMENDATIONS_PCT'] > FOLLOWED_RECOMMENDATIONS_PCT_hi]
+
+chef['out_FOLLOWED_RECOMMENDATIONS_PCT'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# AVG_PREP_VID_TIME
+chef['out_AVG_PREP_VID_TIME'] = 0
+condition_hi = chef.loc[0:,'out_AVG_PREP_VID_TIME'][chef['AVG_PREP_VID_TIME'] > AVG_PREP_VID_TIME_hi]
+
+chef['out_AVG_PREP_VID_TIME'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# AVG_CLICKS_PER_VISIT
+chef['out_AVG_CLICKS_PER_VISIT'] = 0
+condition_lo = chef.loc[0:,'out_AVG_CLICKS_PER_VISIT'][chef['AVG_CLICKS_PER_VISIT'] < AVG_CLICKS_PER_VISIT_lo]
+
+chef['out_AVG_CLICKS_PER_VISIT'].replace(to_replace = condition_lo,
+                                    value      = 1,
+                                    inplace    = True)
+
+# TOTAL_PHOTOS_VIEWED
+chef['out_TOTAL_PHOTOS_VIEWED'] = 0
+condition_lo = chef.loc[0:,'out_TOTAL_PHOTOS_VIEWED'][chef['TOTAL_PHOTOS_VIEWED'] > TOTAL_PHOTOS_VIEWED_hi]
+
+chef['out_TOTAL_PHOTOS_VIEWED'].replace(to_replace = condition_hi,
+                                    value      = 1,
+                                    inplace    = True)
+# PC_LOGINS
+chef['out_PC_LOGINS'] = 0
+condition_hi = chef.loc[0:,'out_PC_LOGINS'][chef['PC_LOGINS'] > PC_LOGINS_hi]
+condition_lo = chef.loc[0:,'out_PC_LOGINS'][chef['PC_LOGINS'] < PC_LOGINS_lo]
+
+chef['out_PC_LOGINS'].replace(to_replace = condition_hi,
+                                    value      = 1,
+                                    inplace    = True)
+
+chef['out_PC_LOGINS'].replace(to_replace = condition_lo,
+                                    value      = 1,
+                                    inplace    = True)
+
+# MOBILE_LOGINS
+chef['out_MOBILE_LOGINS'] = 0
+condition_hi = chef.loc[0:,'out_MOBILE_LOGINS'][chef['MOBILE_LOGINS'] > MOBILE_LOGINS_hi]
+condition_lo = chef.loc[0:,'out_MOBILE_LOGINS'][chef['MOBILE_LOGINS'] < MOBILE_LOGINS_lo]
+
+chef['out_MOBILE_LOGINS'].replace(to_replace = condition_hi,
+                                    value      = 1,
+                                    inplace    = True)
+
+chef['out_MOBILE_LOGINS'].replace(to_replace = condition_lo,
+                                    value      = 1,
+                                    inplace    = True)
+# LARGEST_ORDER_SIZE
+chef['out_LARGEST_ORDER_SIZE'] = 0
+condition_hi = chef.loc[0:,'out_LARGEST_ORDER_SIZE'][chef['LARGEST_ORDER_SIZE'] > LARGEST_ORDER_SIZE_hi]
+condition_lo = chef.loc[0:,'out_LARGEST_ORDER_SIZE'][chef['LARGEST_ORDER_SIZE'] < LARGEST_ORDER_SIZE_lo]
+
+chef['out_LARGEST_ORDER_SIZE'].replace(to_replace = condition_hi,
+                                    value      = 1,
+                                    inplace    = True)
+
+chef['out_LARGEST_ORDER_SIZE'].replace(to_replace = condition_lo,
+                                    value      = 1,
+                                    inplace    = True)
+# MASTER_CLASSES_ATTENDED
+chef['out_MASTER_CLASSES_ATTENDED'] = 0
+condition_hi = chef.loc[0:,'out_MASTER_CLASSES_ATTENDED'][chef['MASTER_CLASSES_ATTENDED'] > MASTER_CLASSES_ATTENDED_hi]
+
+chef['out_MASTER_CLASSES_ATTENDED'].replace(to_replace = condition_hi,
+                                value      = 1,
+                                inplace    = True)
+
+# MEDIAN_MEAL_RATING
+chef['out_MEDIAN_MEAL_RATING'] = 0
+condition_hi = chef.loc[0:,'out_MEDIAN_MEAL_RATING'][chef['MEDIAN_MEAL_RATING'] > MEDIAN_MEAL_RATING_hi]
+condition_lo = chef.loc[0:,'out_MEDIAN_MEAL_RATING'][chef['MEDIAN_MEAL_RATING'] < MEDIAN_MEAL_RATING_lo]
+
+chef['out_MEDIAN_MEAL_RATING'].replace(to_replace = condition_hi,
+                                    value      = 1,
+                                    inplace    = True)
+
+chef['out_MEDIAN_MEAL_RATING'].replace(to_replace = condition_lo,
+                                    value      = 1,
+                                    inplace    = True)
+TOTAL_MEALS_ORDERED_change_hi               = 50000 
+UNIQUE_MEALS_PURCH_change_hi                = 10 
+CONTACTS_W_CUSTOMER_SERVICE_change_hi       = 10
+AVG_TIME_PER_SITE_VISIT_change_hi           = 300
+AVG_PREP_VID_TIME_change_hi                 = 300
+
+WEEKLY_PLAN_change_at                       = 30
+EARLY_DELIVERIES_change_at                  = 4
+LATE_DELIVERIES_change_at                   = 6
+MEDIAN_MEAL_RATING_change_at                = 4
+MASTER_CLASSES_ATTENDED_change_at           = 2
+PRODUCT_CATEGORIES_VIEWED_change_at         = 5
+TOTAL_PHOTOS_VIEWED_change_at               = 0
+
+# TOTAL_MEALS_ORDERED
+chef['change_TOTAL_MEALS_ORDERED'] = 0
+condition = chef.loc[0:,'change_TOTAL_MEALS_ORDERED'][chef['TOTAL_MEALS_ORDERED'] > TOTAL_MEALS_ORDERED_change_hi]
+
+chef['change_TOTAL_MEALS_ORDERED'].replace(to_replace = condition,
+                                   value      = 1,
+                                   inplace    = True)
+
+
+
+# UNIQUE_MEALS_PURCH
+chef['change_UNIQUE_MEALS_PURCH'] = 0
+condition = chef.loc[0:,'change_UNIQUE_MEALS_PURCH'][chef['UNIQUE_MEALS_PURCH'] > UNIQUE_MEALS_PURCH_change_hi]
+
+chef['change_UNIQUE_MEALS_PURCH'].replace(to_replace = condition,
+                                value      = 1,
+                                inplace    = True)
+
+
+# CONTACTS_W_CUSTOMER_SERVICE
+chef['change_CONTACTS_W_CUSTOMER_SERVICE'] = 0
+
+condition = chef.loc[0:,'change_CONTACTS_W_CUSTOMER_SERVICE'][chef['CONTACTS_W_CUSTOMER_SERVICE'] > CONTACTS_W_CUSTOMER_SERVICE_change_hi]
+
+chef['change_CONTACTS_W_CUSTOMER_SERVICE'].replace(to_replace = condition,
+                                      value      = 1,
+                                      inplace    = True)
+# AVG_TIME_PER_SITE_VISIT
+chef['change_AVG_TIME_PER_SITE_VISIT'] = 0
+condition = chef.loc[0:,'change_AVG_TIME_PER_SITE_VISIT'][chef['AVG_TIME_PER_SITE_VISIT'] > AVG_TIME_PER_SITE_VISIT_change_hi]
+
+chef['change_AVG_TIME_PER_SITE_VISIT'].replace(to_replace = condition,
+                                   value      = 1,
+                                   inplace    = True)
+
+# AVG_PREP_VID_TIME
+chef['change_AVG_PREP_VID_TIME'] = 0
+condition = chef.loc[0:,'change_AVG_PREP_VID_TIME'][chef['AVG_PREP_VID_TIME'] > AVG_PREP_VID_TIME_change_hi]
+
+chef['change_AVG_PREP_VID_TIME'].replace(to_replace = condition,
+                                   value      = 1,
+                                   inplace    = True)
+
+# WEEKLY_PLAN
+chef['change_WEEKLY_PLAN'] = 0
+condition = chef.loc[0:,'change_WEEKLY_PLAN'][chef['WEEKLY_PLAN'] == WEEKLY_PLAN_change_at]
+
+chef['change_WEEKLY_PLAN'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+# EARLY_DELIVERIES
+chef['change_EARLY_DELIVERIES'] = 0
+condition = chef.loc[0:,'change_EARLY_DELIVERIES'][chef['EARLY_DELIVERIES'] == EARLY_DELIVERIES_change_at]
+
+chef['change_EARLY_DELIVERIES'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+# LATE_DELIVERIES
+chef['change_LATE_DELIVERIES'] = 0
+condition = chef.loc[0:,'change_LATE_DELIVERIES'][chef['LATE_DELIVERIES'] == LATE_DELIVERIES_change_at]
+
+chef['change_LATE_DELIVERIES'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+# MEDIAN_MEAL_RATING
+chef['change_MEDIAN_MEAL_RATING'] = 0
+condition = chef.loc[0:,'change_MEDIAN_MEAL_RATING'][chef['MEDIAN_MEAL_RATING'] == MEDIAN_MEAL_RATING_change_at]
+
+chef['change_MEDIAN_MEAL_RATING'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+# MASTER_CLASSES_ATTENDED
+chef['change_MASTER_CLASSES_ATTENDED'] = 0
+condition = chef.loc[0:,'change_MASTER_CLASSES_ATTENDED'][chef['MASTER_CLASSES_ATTENDED'] == MASTER_CLASSES_ATTENDED_change_at]
+
+chef['change_MASTER_CLASSES_ATTENDED'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+
+
+# PRODUCT_CATEGORIES_VIEWED
+chef['change_PRODUCT_CATEGORIES_VIEWED'] = 0
+condition = chef.loc[0:,'change_PRODUCT_CATEGORIES_VIEWED'][chef['PRODUCT_CATEGORIES_VIEWED'] == PRODUCT_CATEGORIES_VIEWED_change_at]
+
+chef['change_PRODUCT_CATEGORIES_VIEWED'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+# TOTAL_PHOTOS_VIEWED
+chef['change_TOTAL_PHOTOS_VIEWED'] = 0
+condition = chef.loc[0:,'change_TOTAL_PHOTOS_VIEWED'][chef['TOTAL_PHOTOS_VIEWED'] == TOTAL_PHOTOS_VIEWED_change_at]
+
+chef['change_TOTAL_PHOTOS_VIEWED'].replace(to_replace = condition,
+                                       value      = 1,
+                                       inplace    = True)
+
+##################################One hot encoding for FAMILY_NAME and domain group:
+one_hot_FAMILY_NAME          = pd.get_dummies(chef['FAMILY_NAME'])
+one_hot_domain_group          = pd.get_dummies(chef['domain_group'])
+
+
+chef = chef.drop('FAMILY_NAME', axis = 1)
+chef = chef.drop('domain_group', axis = 1)
+
+chef = chef.join([one_hot_FAMILY_NAME,one_hot_domain_group])
+
+
+new_columns = chef.columns
+
+##################################preparing explanatory variable data:
+chef_data   = chef.drop(['REVENUE',
+                         'out_REVENUE',
+                         'CROSS_SELL_SUCCESS',
+                         'EMAIL',
+                         'NAME',
+                         'FIRST_NAME',
+                         'personal_email_domain'
+                         ],
+                          axis = 1)
+
+
+# preparing response variable data
+chef_target = chef.loc[:, 'REVENUE']
+
+
+# preparing training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(
+            chef_data,
+            chef_target,
+            test_size = 0.25,
+            random_state = 222)
+
+
+# Training set 
+print(X_train.shape)
+print(y_train.shape)
+
+# Testing set
+print(X_test.shape)
+print(y_test.shape)
+
+##################################Declaring set of chef-variables:
+chef_variables = ['TOTAL_MEALS_ORDERED', 'UNIQUE_MEALS_PURCH', 'CONTACTS_W_CUSTOMER_SERVICE', 'PRODUCT_CATEGORIES_VIEWED',
+               'AVG_TIME_PER_SITE_VISIT', 'MOBILE_NUMBER', 'CANCELLATIONS_BEFORE_NOON', 'CANCELLATIONS_AFTER_NOON',
+               'TASTES_AND_PREFERENCES', 'PC_LOGINS', 'MOBILE_LOGINS', 'WEEKLY_PLAN','EARLY_DELIVERIES', 'LATE_DELIVERIES', 
+               'PACKAGE_LOCKER', 'REFRIGERATED_LOCKER','FOLLOWED_RECOMMENDATIONS_PCT', 'AVG_PREP_VID_TIME', 'LARGEST_ORDER_SIZE',
+               'MASTER_CLASSES_ATTENDED', 'MEDIAN_MEAL_RATING', 'AVG_CLICKS_PER_VISIT', 'TOTAL_PHOTOS_VIEWED','M_FAMILY_NAME',
+               'FAMILY_NAME_SCORE','out_TOTAL_MEALS_ORDERED', 'out_UNIQUE_MEALS_PURCH','out_CONTACTS_W_CUSTOMER_SERVICE',
+               'out_PRODUCT_CATEGORIES_VIEWED', 'out_AVG_TIME_PER_SITE_VISIT', 'out_CANCELLATIONS_BEFORE_NOON','out_WEEKLY_PLAN',
+               'out_EARLY_DELIVERIES', 'out_LATE_DELIVERIES', 'out_FOLLOWED_RECOMMENDATIONS_PCT','out_AVG_PREP_VID_TIME', 
+               'out_AVG_CLICKS_PER_VISIT', 'out_TOTAL_PHOTOS_VIEWED', 'out_PC_LOGINS','out_MOBILE_LOGINS','out_LARGEST_ORDER_SIZE',
+               'out_MASTER_CLASSES_ATTENDED','out_MEDIAN_MEAL_RATING','change_TOTAL_MEALS_ORDERED','change_UNIQUE_MEALS_PURCH',
+               'change_CONTACTS_W_CUSTOMER_SERVICE','change_AVG_TIME_PER_SITE_VISIT','change_AVG_PREP_VID_TIME','change_WEEKLY_PLAN',
+               'change_EARLY_DELIVERIES','change_LATE_DELIVERIES','change_MEDIAN_MEAL_RATING','change_MASTER_CLASSES_ATTENDED',
+               'change_PRODUCT_CATEGORIES_VIEWED','change_TOTAL_PHOTOS_VIEWED','personal','work']
+
+# looping to make x-variables suitable for statsmodels
+for val in chef_variables:
+    print(f"chef_train['{val}'] +")
+    
+# merging X_train and y_train so that they can be used in statsmodels
+chef_train = pd.concat([X_train, y_train], axis = 1)
+
+
+# Step 1: build a model
+lm_best = smf.ols(formula =  """REVENUE ~   chef_train['TOTAL_MEALS_ORDERED'] +
+                                            chef_train['UNIQUE_MEALS_PURCH'] +
+                                            chef_train['CONTACTS_W_CUSTOMER_SERVICE'] +
+                                            chef_train['PRODUCT_CATEGORIES_VIEWED'] +
+                                            chef_train['AVG_TIME_PER_SITE_VISIT'] +
+                                            chef_train['MOBILE_NUMBER'] +
+                                            chef_train['CANCELLATIONS_BEFORE_NOON'] +
+                                            chef_train['CANCELLATIONS_AFTER_NOON'] +
+                                            chef_train['TASTES_AND_PREFERENCES'] +
+                                            chef_train['PC_LOGINS'] +
+                                            chef_train['MOBILE_LOGINS'] +
+                                            chef_train['WEEKLY_PLAN'] +
+                                            chef_train['EARLY_DELIVERIES'] +
+                                            chef_train['LATE_DELIVERIES'] +
+                                            chef_train['PACKAGE_LOCKER'] +
+                                            chef_train['REFRIGERATED_LOCKER'] +
+                                            chef_train['FOLLOWED_RECOMMENDATIONS_PCT'] +
+                                            chef_train['AVG_PREP_VID_TIME'] +
+                                            chef_train['LARGEST_ORDER_SIZE'] +
+                                            chef_train['MASTER_CLASSES_ATTENDED'] +
+                                            chef_train['MEDIAN_MEAL_RATING'] +
+                                            chef_train['AVG_CLICKS_PER_VISIT'] +
+                                            chef_train['TOTAL_PHOTOS_VIEWED'] +
+                                            chef_train['M_FAMILY_NAME'] +
+                                            chef_train['FAMILY_NAME_SCORE'] +
+                                            chef_train['out_TOTAL_MEALS_ORDERED'] +
+                                            chef_train['out_UNIQUE_MEALS_PURCH'] +
+                                            chef_train['out_CONTACTS_W_CUSTOMER_SERVICE'] +
+                                            chef_train['out_PRODUCT_CATEGORIES_VIEWED'] +
+                                            chef_train['out_AVG_TIME_PER_SITE_VISIT'] +
+                                            chef_train['out_CANCELLATIONS_BEFORE_NOON'] +
+                                            chef_train['out_WEEKLY_PLAN'] +
+                                            chef_train['out_EARLY_DELIVERIES'] +
+                                            chef_train['out_LATE_DELIVERIES'] +
+                                            chef_train['out_FOLLOWED_RECOMMENDATIONS_PCT'] +
+                                            chef_train['out_AVG_PREP_VID_TIME'] +
+                                            chef_train['out_AVG_CLICKS_PER_VISIT'] +
+                                            chef_train['out_TOTAL_PHOTOS_VIEWED'] +
+                                            chef_train['out_PC_LOGINS'] +
+                                            chef_train['out_MOBILE_LOGINS'] +
+                                            chef_train['out_LARGEST_ORDER_SIZE'] +
+                                            chef_train['out_MASTER_CLASSES_ATTENDED'] +
+                                            chef_train['out_MEDIAN_MEAL_RATING'] +
+                                            chef_train['change_TOTAL_MEALS_ORDERED'] +
+                                            chef_train['change_UNIQUE_MEALS_PURCH'] +
+                                            chef_train['change_CONTACTS_W_CUSTOMER_SERVICE'] +
+                                            chef_train['change_AVG_TIME_PER_SITE_VISIT'] +
+                                            chef_train['change_AVG_PREP_VID_TIME'] +
+                                            chef_train['change_WEEKLY_PLAN'] +
+                                            chef_train['change_EARLY_DELIVERIES'] +
+                                            chef_train['change_LATE_DELIVERIES'] +
+                                            chef_train['change_MEDIAN_MEAL_RATING'] +
+                                            chef_train['change_MASTER_CLASSES_ATTENDED'] +
+                                            chef_train['change_PRODUCT_CATEGORIES_VIEWED'] +
+                                            chef_train['change_TOTAL_PHOTOS_VIEWED'] +
+                                            chef_train['personal'] +
+                                            chef_train['work']""",
+                                            data = chef_train)
+
+
+# Step 2: fit the model based on the data
+results = lm_best.fit()
+
+
+
+# Step 3: analyze the summary output
+print(results.summary())
+
+##################################Applying modelin scikit-learn:
+# preparing x-variables
+chef_data = chef.loc[: , chef_variables]    
+
+
+# preparing response variable
+chef_target = chef.loc[ : , 'REVENUE']
+
+
+# running train/test split again
+X_train, X_test, y_train, y_test = train_test_split(
+                    chef_data,
+                    chef_target,
+                    test_size = 0.25,
+                    random_state = 222)
+
+##################################Building Linear Regression model:
+# INSTANTIATING a model object
+lr = LinearRegression()
+
+# FITTING to the training data
+lr_fit = lr.fit(X_train, y_train)
+
+
+# PREDICTING on new data
+lr_pred = lr_fit.predict(X_test)
+
+
+# SCORING the results
+print('Training Score:', lr.score(X_train, y_train).round(4))
+print('Testing Score:',  lr.score(X_test, y_test).round(4))
+
+#training score is higher than testing score: 
+lr_train_score = lr.score(X_train, y_train).round(4)
+lr_test_score  = lr.score(X_test, y_test).round(4)
+
